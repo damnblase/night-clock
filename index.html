@@ -1,0 +1,697 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Night Clock</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Clock">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>
+@font-face{font-family:'DSEG7C';src:url(fonts/DSEG7Classic-Bold.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DSEG7CI';src:url(fonts/DSEG7Classic-BoldItalic.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DSEG7M';src:url(fonts/DSEG7Modern-Bold.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DSEG14C';src:url(fonts/DSEG14Classic-Bold.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DSEG14CI';src:url(fonts/DSEG14Classic-BoldItalic.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DSEG14M';src:url(fonts/DSEG14Modern-Bold.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Doto';src:url(fonts/doto.woff2) format('woff2');font-display:block}
+@font-face{font-family:'LCDDot TR';src:url(fonts/lcddot-tr.ttf) format('truetype');font-display:block}
+@font-face{font-family:'Bitcount Grid Double';src:url(fonts/bitcount-grid-double.woff2) format('woff2');font-display:block}
+@font-face{font-family:'DotGothic16';src:url(fonts/dotgothic16.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Micro 5';src:url(fonts/micro-5.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Silkscreen';src:url(fonts/silkscreen.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Tiny5';src:url(fonts/tiny5.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Pixelify Sans';src:url(fonts/pixelify-sans.woff2) format('woff2');font-display:block}
+@font-face{font-family:'VT323';src:url(fonts/vt323.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Workbench';src:url(fonts/workbench.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Sixtyfour';src:url(fonts/sixtyfour.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Share Tech Mono';src:url(fonts/share-tech-mono.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Handjet';src:url(fonts/handjet.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Nixie One';src:url(fonts/nixie-one.woff2) format('woff2');font-display:block}
+@font-face{font-family:'Orbitron';src:url(fonts/orbitron.woff2) format('woff2');font-display:block}
+
+:root{--c:#ff3b1f;--ds:.28;--ga:.13}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%}
+body{position:fixed;inset:0;color:#bbb;font:15px/1.35 -apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+
+/* ---------- clock ---------- */
+#screen{position:fixed;inset:0;background:#000;touch-action:none;cursor:pointer}
+#frame{position:absolute;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);right:env(safe-area-inset-right);display:flex;align-items:center;justify-content:center}
+#stage{flex:none;color:var(--c);display:flex;flex-direction:column;align-items:center;font-size:100px}
+#timeRow{display:flex;align-items:stretch;flex:none}
+#main{display:flex;flex-direction:column;align-items:center;flex:none}
+#mainB{margin-top:.07em}
+#side{flex:none;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;font-size:.3em;margin-left:.35em;padding:.12em 0}
+#side.only-secs{justify-content:flex-end}
+#side.only-ap{justify-content:flex-start}
+#date{font-size:calc(var(--ds)*1em);margin-top:.55em}
+
+.txt{display:grid;line-height:1;white-space:pre;font-weight:normal;font-style:normal;font-synthesis:none;font-variant-numeric:tabular-nums}
+.txt>span{grid-area:1/1}
+.txt .g{visibility:hidden}
+.txt.ghost-on .g{visibility:visible;opacity:var(--ga)}
+.txt .l{justify-self:center}
+.txt.seg .l,.txt.ghost-on .l{justify-self:end}
+.txt .c.off{visibility:hidden}
+.txt.mx{display:block}
+.txt.mx canvas{display:block}
+.glow .txt .l{text-shadow:0 0 .05em var(--c),0 0 .2em color-mix(in srgb,var(--c) 55%,transparent)}
+
+#hud{position:fixed;top:calc(env(safe-area-inset-top) + 18px);left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:20px;background:rgba(28,28,28,.85);color:#bbb;font-size:14px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:5;white-space:nowrap}
+#hud.show{opacity:1;transition:none}
+#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 22px);text-align:center;color:#555;font-size:13px;transition:opacity 1.2s;pointer-events:none;z-index:4}
+
+/* ---------- settings sheet ---------- */
+#sheet{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);width:min(100%,640px);max-height:88%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;background:#0b0b0b;border:1px solid #1d1d1d;border-bottom:0;border-radius:18px 18px 0 0;padding:6px max(18px,env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));transition:transform .28s ease;z-index:10;cursor:default}
+#sheet.open{transform:translate(-50%,0)}
+.grab{width:38px;height:5px;border-radius:3px;background:#2a2a2a;margin:4px auto 6px}
+#sheet section{padding:12px 0 6px;border-bottom:1px solid #151515}
+#sheet h3{margin:0 0 10px;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#6a6a6a}
+#sheet small{display:block;color:#555;font-size:12px;margin-top:6px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.tile{position:relative;background:#000;border:1px solid #1f1f1f;border-radius:11px;padding:12px 6px 7px;color:var(--c);cursor:pointer;font:inherit;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0}
+.tile.on{border-color:#8a8a8a;background:#070707}
+.prev{height:30px;width:100%;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.prev .txt{font-size:20px}
+.tile .nm{font-size:11px;color:#7a7a7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.tile.on .nm{color:#ddd}
+.tile .x{position:absolute;top:2px;right:4px;width:22px;height:22px;line-height:20px;text-align:center;color:#666;font-size:17px}
+
+.swatches{display:flex;flex-wrap:wrap;gap:10px}
+.sw{width:36px;height:36px;border-radius:50%;border:2px solid transparent;outline:1px solid #222;cursor:pointer;padding:0;position:relative;overflow:hidden}
+.sw.on{border-color:#000;outline:2px solid #ddd}
+.sw.custom{background:conic-gradient(#f33,#fd0,#3f6,#0df,#36f,#c3f,#f33)}
+.sw.custom input{position:absolute;inset:-6px;width:60px;height:60px;opacity:0;cursor:pointer}
+
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;font-size:15px;color:#bbb}
+.row.dim{opacity:.35}
+.row input[type=checkbox]{-webkit-appearance:none;appearance:none;flex:none;width:46px;height:28px;border-radius:14px;background:#262626;position:relative;margin:0;cursor:pointer;transition:background .2s}
+.row input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#777;transition:transform .2s,background .2s}
+.row input[type=checkbox]:checked{background:#3b3b3b}
+.row input[type=checkbox]:checked::after{transform:translateX(18px);background:#e6e6e6}
+input[type=range]{width:100%;accent-color:#bbb;margin:4px 0}
+.segctl{display:flex;background:#161616;border-radius:10px;padding:3px;gap:3px;margin-bottom:6px}
+.segctl button{flex:1;background:none;border:0;color:#999;padding:9px 6px;border-radius:8px;font:inherit;font-size:14px;cursor:pointer}
+.segctl button.on{background:#333;color:#f2f2f2}
+select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-radius:9px;padding:9px 10px;font-size:16px;margin:2px 0 6px}
+.lbl{display:flex;justify-content:space-between;font-size:14px;color:#999;margin-top:4px}
+.btn{display:block;width:100%;padding:12px;margin:10px 0 0;background:#171717;color:#ddd;border:1px solid #232323;border-radius:11px;font:inherit;font-size:15px;cursor:pointer}
+#done{background:#222;color:#fff;margin-top:16px}
+#awake{font-size:14px;color:#999}
+#awake b{font-weight:600}
+.credits{font-size:11px;color:#444;margin:14px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="screen">
+  <div id="frame">
+    <div id="stage">
+      <div id="timeRow">
+        <div id="main"><div id="mainA" class="txt"></div><div id="mainB" class="txt" hidden></div></div>
+        <div id="side" hidden><div id="ap" class="txt"></div><div id="secs" class="txt"></div></div>
+      </div>
+      <div id="date" class="txt" hidden></div>
+    </div>
+  </div>
+</div>
+<div id="hud"></div>
+<div id="hint">Tap for settings &nbsp;·&nbsp; swipe up / down for brightness</div>
+<video id="nosleep" src="keepawake.mp4" playsinline muted loop preload="auto" style="position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none"></video>
+
+<div id="sheet" aria-label="Settings">
+  <div class="grab"></div>
+
+  <section>
+    <h3>Style</h3>
+    <div id="fonts" class="tiles"></div>
+    <button class="btn" id="addFont">+ Add a font from Files…</button>
+    <input type="file" id="fontFile" hidden>
+    <small>Any .ttf / .otf / .woff file works — e.g. DS-Digital from your Mac, AirDropped to the phone.</small>
+  </section>
+
+  <section>
+    <h3>Color</h3>
+    <div id="colors" class="swatches"></div>
+  </section>
+
+  <section>
+    <h3>Brightness</h3>
+    <input type="range" data-set="brightness" min="1" max="100">
+    <small>Tip: swipe up or down anywhere on the clock.</small>
+  </section>
+
+  <section>
+    <h3>Show</h3>
+    <div class="segctl" data-set="show"><button data-v="time">Time</button><button data-v="timedate">Time + date</button></div>
+  </section>
+
+  <section>
+    <h3>Size</h3>
+    <div class="lbl"><span>Clock</span><span id="sizeV"></span></div>
+    <input type="range" data-set="size" min="25" max="100">
+    <div class="lbl" id="dateSizeLbl"><span>Date (relative to time)</span><span id="dateSizeV"></span></div>
+    <input type="range" data-set="dateSize" min="12" max="60" id="dateSizeR">
+  </section>
+
+  <section>
+    <h3>Time</h3>
+    <div class="segctl" data-set="hour12"><button data-v="false">24-hour</button><button data-v="true">12-hour</button></div>
+    <label class="row"><span>Leading zero <span style="color:#555">(07:05)</span></span><input type="checkbox" data-set="leadingZero"></label>
+    <label class="row" id="apRow"><span>AM / PM</span><input type="checkbox" data-set="ampm"></label>
+    <label class="row"><span>Seconds</span><input type="checkbox" data-set="seconds"></label>
+    <label class="row"><span>Blinking colon</span><input type="checkbox" data-set="blink"></label>
+    <label class="row"><span>Stack hours over minutes when vertical</span><input type="checkbox" data-set="stack"></label>
+  </section>
+
+  <section id="dateSec">
+    <h3>Date</h3>
+    <select data-set="dateFormat" id="dateFormat"></select>
+    <select data-set="lang" id="lang">
+      <option value="auto">Phone language</option>
+      <option value="en-GB">English</option>
+      <option value="fr-FR">Français</option>
+      <option value="nl-NL">Nederlands</option>
+      <option value="de-DE">Deutsch</option>
+      <option value="es-ES">Español</option>
+      <option value="it-IT">Italiano</option>
+      <option value="pt-PT">Português</option>
+    </select>
+    <label class="row"><span>UPPERCASE</span><input type="checkbox" data-set="upper"></label>
+  </section>
+
+  <section>
+    <h3>Look</h3>
+    <label class="row"><span>Glow</span><input type="checkbox" data-set="glow"></label>
+    <label class="row" id="ghostRow"><span>Show unlit segments / dots</span><input type="checkbox" data-set="ghost"></label>
+    <label class="row"><span>Burn-in protection <span style="color:#555">(drifts a few pixels each minute)</span></span><input type="checkbox" data-set="shift"></label>
+  </section>
+
+  <section>
+    <h3>Screen</h3>
+    <div id="awake"></div>
+  </section>
+
+  <button class="btn" id="done">Done</button>
+  <p class="credits">Fonts: DSEG by Keshikan (SIL OFL) · LCDDot TR by Ömer Köse (CC BY-SA) · Doto, Bitcount, DotGothic16, Micro 5, Silkscreen, Tiny5, Pixelify Sans, VT323, Workbench, Sixtyfour, Share Tech Mono, Handjet, Nixie One, Orbitron from Google Fonts (SIL OFL).</p>
+</div>
+
+<script>
+'use strict';
+const $ = s => document.querySelector(s);
+const PAD = ' ';                       // blank the width of one digit
+const KEY = 'nightclock.settings.v1', FKEY = 'nightclock.fonts.v1', HKEY = 'nightclock.hint.v1';
+
+const store = {
+  get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+};
+
+const DEFAULTS = {
+  font: 'dseg7', color: '#ff3b1f', show: 'time',
+  hour12: false, leadingZero: true, ampm: true, seconds: false, blink: false, stack: true,
+  dateFormat: 'wdm', lang: 'auto', upper: true,
+  size: 92, dateSize: 28, brightness: 55,
+  glow: true, ghost: true, shift: true
+};
+let S = Object.assign({}, DEFAULTS, store.get(KEY) || {});
+const save = () => store.set(KEY, S);
+
+/* kind: seg = DSEG segment font, matrix = drawn dot matrix, text = regular font, custom = imported */
+const FONTS = [
+  { id: 'dseg7',   name: '7-Segment',      kind: 'seg', fam: 'DSEG7C',  tfam: 'DSEG14C' },
+  { id: 'dseg7i',  name: '7-Seg Italic',   kind: 'seg', fam: 'DSEG7CI', tfam: 'DSEG14CI' },
+  { id: 'dseg7m',  name: '7-Seg Modern',   kind: 'seg', fam: 'DSEG7M',  tfam: 'DSEG14M' },
+  { id: 'dseg14',  name: '14-Segment',     kind: 'seg', fam: 'DSEG14C' },
+  { id: 'dseg14m', name: '14-Seg Modern',  kind: 'seg', fam: 'DSEG14M' },
+  { id: 'ledm',    name: 'LED Matrix',     kind: 'matrix', shape: 'round' },
+  { id: 'lcdm',    name: 'LCD Pixels',     kind: 'matrix', shape: 'square' },
+  { id: 'doto',    name: 'Doto',           kind: 'text', fam: 'Doto' },
+  { id: 'lcddot',  name: 'LCD Dot',        kind: 'text', fam: 'LCDDot TR' },
+  { id: 'bitcount',name: 'Bitcount',       kind: 'text', fam: 'Bitcount Grid Double' },
+  { id: 'dotgothic',name:'DotGothic',      kind: 'text', fam: 'DotGothic16' },
+  { id: 'micro5',  name: 'Micro 5',        kind: 'text', fam: 'Micro 5' },
+  { id: 'silk',    name: 'Silkscreen',     kind: 'text', fam: 'Silkscreen' },
+  { id: 'tiny5',   name: 'Tiny5',          kind: 'text', fam: 'Tiny5' },
+  { id: 'pixelify',name: 'Pixelify',       kind: 'text', fam: 'Pixelify Sans' },
+  { id: 'vt323',   name: 'VT323',          kind: 'text', fam: 'VT323' },
+  { id: 'workbench',name:'Workbench',      kind: 'text', fam: 'Workbench' },
+  { id: 'sixtyfour',name:'Sixtyfour',      kind: 'text', fam: 'Sixtyfour' },
+  { id: 'sharetech',name:'Share Tech',     kind: 'text', fam: 'Share Tech Mono' },
+  { id: 'handjet', name: 'Handjet',        kind: 'text', fam: 'Handjet' },
+  { id: 'nixie',   name: 'Nixie',          kind: 'text', fam: 'Nixie One' },
+  { id: 'orbitron',name: 'Orbitron',       kind: 'text', fam: 'Orbitron' }
+];
+let customFonts = store.get(FKEY) || [];
+const allFonts = () => FONTS.concat(customFonts.map(f => ({ id: f.id, name: f.name, kind: 'custom', fam: f.fam, custom: true })));
+const curFont = () => allFonts().find(f => f.id === S.font) || FONTS[0];
+const ghostable = F => F.kind !== 'text';
+
+const COLORS = ['#ff3b1f', '#b80000', '#ff6a00', '#ffb000', '#ffe14d', '#39ff14', '#3dffc8', '#00e5ff', '#2f7bff', '#a259ff', '#ff3da8', '#f2f2f2'];
+
+/* ---------- 5×7 dot-matrix glyphs ---------- */
+const GLYPH_SRC = {
+  '0': '.###.|#...#|#...#|#...#|#...#|#...#|.###.', '1': '..#..|.##..|..#..|..#..|..#..|..#..|.###.',
+  '2': '.###.|#...#|....#|...#.|..#..|.#...|#####', '3': '#####|...#.|..#..|...#.|....#|#...#|.###.',
+  '4': '...#.|..##.|.#.#.|#..#.|#####|...#.|...#.', '5': '#####|#....|####.|....#|....#|#...#|.###.',
+  '6': '..##.|.#...|#....|####.|#...#|#...#|.###.', '7': '#####|....#|...#.|..#..|.#...|.#...|.#...',
+  '8': '.###.|#...#|#...#|.###.|#...#|#...#|.###.', '9': '.###.|#...#|#...#|.####|....#|...#.|.##..',
+  ':': '.|.|#|.|#|.|.', '.': '.|.|.|.|.|.|#', ',': '..|..|..|..|..|.#|#.', ' ': '...|...|...|...|...|...|...',
+  '-': '....|....|....|####|....|....|....', '/': '.....|....#|...#.|..#..|.#...|#....|.....',
+  'A': '.###.|#...#|#...#|#####|#...#|#...#|#...#', 'B': '####.|#...#|#...#|####.|#...#|#...#|####.',
+  'C': '.###.|#...#|#....|#....|#....|#...#|.###.', 'D': '###..|#..#.|#...#|#...#|#...#|#..#.|###..',
+  'E': '#####|#....|#....|####.|#....|#....|#####', 'F': '#####|#....|#....|####.|#....|#....|#....',
+  'G': '.###.|#...#|#....|#.###|#...#|#...#|.####', 'H': '#...#|#...#|#...#|#####|#...#|#...#|#...#',
+  'I': '###|.#.|.#.|.#.|.#.|.#.|###',             'J': '..###|...#.|...#.|...#.|...#.|#..#.|.##..',
+  'K': '#...#|#..#.|#.#..|##...|#.#..|#..#.|#...#', 'L': '#....|#....|#....|#....|#....|#....|#####',
+  'M': '#...#|##.##|#.#.#|#.#.#|#...#|#...#|#...#', 'N': '#...#|#...#|##..#|#.#.#|#..##|#...#|#...#',
+  'O': '.###.|#...#|#...#|#...#|#...#|#...#|.###.', 'P': '####.|#...#|#...#|####.|#....|#....|#....',
+  'Q': '.###.|#...#|#...#|#...#|#.#.#|#..#.|.##.#', 'R': '####.|#...#|#...#|####.|#.#..|#..#.|#...#',
+  'S': '.####|#....|#....|.###.|....#|....#|####.', 'T': '#####|..#..|..#..|..#..|..#..|..#..|..#..',
+  'U': '#...#|#...#|#...#|#...#|#...#|#...#|.###.', 'V': '#...#|#...#|#...#|#...#|#...#|.#.#.|..#..',
+  'W': '#...#|#...#|#...#|#.#.#|#.#.#|#.#.#|.#.#.', 'X': '#...#|#...#|.#.#.|..#..|.#.#.|#...#|#...#',
+  'Y': '#...#|#...#|.#.#.|..#..|..#..|..#..|..#..', 'Z': '#####|....#|...#.|..#..|.#...|#....|#####'
+};
+const GLYPHS = {};
+for (const [ch, src] of Object.entries(GLYPH_SRC)) {
+  const rows = src.split('|'), w = rows[0].length, cols = [];
+  for (let x = 0; x < w; x++) cols.push(rows.map(r => r[x] === '#'));
+  GLYPHS[ch] = cols;
+}
+GLYPHS[PAD] = Array.from({ length: 5 }, () => Array(7).fill(false));
+const EMPTY_COL = Array(7).fill(false);
+
+/* ---------- time & date text ---------- */
+const p2 = n => String(n).padStart(2, '0');
+function timeParts(d) {
+  let h = d.getHours(), ap = '';
+  if (S.hour12) { ap = h < 12 ? 'AM' : 'PM'; h = h % 12 || 12; }
+  let hs = String(h), hpad = false;
+  if (hs.length < 2) { if (S.leadingZero) hs = '0' + hs; else hpad = true; }
+  return { h: hs, hpad, m: p2(d.getMinutes()), s: p2(d.getSeconds()), ap };
+}
+const loc = () => S.lang === 'auto' ? undefined : S.lang;
+const nm = (d, o) => new Intl.DateTimeFormat(loc(), o).format(d).replace(/\.$/, '');
+const wd = (d, len) => nm(d, { weekday: len });
+const mo = (d, len) => nm(d, { month: len });
+const DATE_FORMATS = [
+  { id: 'wdm',   f: d => `${wd(d, 'short')} ${d.getDate()} ${mo(d, 'short')}` },
+  { id: 'wmd',   f: d => `${wd(d, 'short')} ${mo(d, 'short')} ${d.getDate()}` },
+  { id: 'WDM',   f: d => `${wd(d, 'long')} ${d.getDate()} ${mo(d, 'long')}` },
+  { id: 'WMD',   f: d => `${wd(d, 'long')}, ${mo(d, 'long')} ${d.getDate()}` },
+  { id: 'W',     f: d => wd(d, 'long') },
+  { id: 'dmy',   f: d => `${d.getDate()} ${mo(d, 'short')} ${d.getFullYear()}` },
+  { id: 'wddmm', f: d => `${wd(d, 'short')} ${p2(d.getDate())}/${p2(d.getMonth() + 1)}` },
+  { id: 'wmmdd', f: d => `${wd(d, 'short')} ${p2(d.getMonth() + 1)}/${p2(d.getDate())}` },
+  { id: 'ddmmyyyy', f: d => `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()}` },
+  { id: 'mmddyyyy', f: d => `${p2(d.getMonth() + 1)}/${p2(d.getDate())}/${d.getFullYear()}` },
+  { id: 'dotted',   f: d => `${p2(d.getDate())}.${p2(d.getMonth() + 1)}.${String(d.getFullYear()).slice(2)}` },
+  { id: 'iso',      f: d => `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}` }
+];
+function dateString(d) {
+  const fmt = DATE_FORMATS.find(f => f.id === S.dateFormat) || DATE_FORMATS[0];
+  let s = fmt.f(d);
+  s = s.charAt(0).toUpperCase() + s.slice(1);
+  return S.upper ? s.toUpperCase() : s;
+}
+function normalizeFor(F, s) {
+  if (F.kind !== 'seg' && F.kind !== 'matrix') return s;
+  s = s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+  return F.kind === 'seg' ? s.replace(/,/g, '') : s;
+}
+const strItems = s => [...s].map(ch => ({ ch }));
+function timeItems(t, colonOn) {
+  const it = t.hpad ? [{ ch: PAD }] : [];
+  for (const c of t.h) it.push({ ch: c });
+  it.push({ ch: ':', colon: true, off: !colonOn });
+  for (const c of t.m) it.push({ ch: c });
+  return it;
+}
+const hourItems = t => (t.hpad ? [{ ch: PAD }] : []).concat(strItems(t.h));
+
+/* ---------- painting ---------- */
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const colonSpan = (ch, off) => `<span class="c${off ? ' off' : ''}">${esc(ch)}</span>`;
+
+function paintTxt(el, items, role, F) {
+  if (F.kind === 'matrix') return paintMatrix(el, items, F);
+  el._cv = null;
+  const fam = role === 'text' ? (F.tfam || F.fam) : F.fam;
+  const ghostOn = S.ghost && (F.kind === 'seg' || (F.kind === 'custom' && role === 'time'));
+  let g = '', l = '';
+  if (F.kind === 'seg') {
+    const full = fam.includes('14') ? '~' : '8';      // "all segments lit" glyph
+    for (const it of items) {
+      const ch = it.ch;
+      if (ch === ':' || ch === '.') { g += ch; l += it.colon ? colonSpan(ch, it.off) : esc(ch); }
+      else if (ch === PAD || ch === ' ') { g += full; l += '!'; }   // '!' = blank digit-width cell in DSEG
+      else { g += full; l += esc(ch); }
+    }
+  } else {
+    for (const it of items) {
+      const ch = it.ch;
+      if (ch === PAD) { g += ghostOn ? '8' : '0'; continue; }
+      g += /\d/.test(ch) ? (ghostOn ? '8' : '0') : ch;
+      l += it.colon ? colonSpan(ch, it.off) : esc(ch);
+    }
+  }
+  el.className = 'txt' + (F.kind === 'seg' ? ' seg' : '') + (ghostOn ? ' ghost-on' : '');
+  el.style.fontFamily = `'${fam}', ui-monospace, monospace`;
+  el.innerHTML = `<span class="g">${esc(g)}</span><span class="l">${l}</span>`;
+}
+
+function paintMatrix(el, items, F) {
+  let cv = el._cv;
+  if (!cv || cv.parentNode !== el) { el.innerHTML = ''; cv = document.createElement('canvas'); el.appendChild(cv); el._cv = cv; }
+  el.className = 'txt mx';
+  el.style.fontFamily = '';
+  const cols = [];
+  items.forEach((it, i) => {
+    const g = GLYPHS[it.ch] || GLYPHS[it.ch.toUpperCase()] || GLYPHS[' '];
+    const on = !(it.colon && it.off);
+    if (i > 0) cols.push(EMPTY_COL);
+    for (const c of g) cols.push(on ? c : EMPTY_COL);
+  });
+  const fs = parseFloat(getComputedStyle(el).fontSize) || 20;
+  const p = fs / 8, m = Math.ceil(p * 1.3), dpr = window.devicePixelRatio || 1;
+  const W = cols.length * p, H = 7 * p;
+  cv.width = Math.max(1, Math.round((W + 2 * m) * dpr));
+  cv.height = Math.max(1, Math.round((H + 2 * m) * dpr));
+  Object.assign(cv.style, { width: (W + 2 * m) + 'px', height: (H + 2 * m) + 'px', margin: (-m) + 'px' });
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W + 2 * m, H + 2 * m);
+  const round = F.shape === 'round';
+  const dot = (x, y) => {
+    const cx = m + (x + .5) * p, cy = m + (y + .5) * p;
+    if (round) { ctx.moveTo(cx + p * .41, cy); ctx.arc(cx, cy, p * .41, 0, Math.PI * 2); }
+    else { const s = p * .86; ctx.rect(cx - s / 2, cy - s / 2, s, s); }
+  };
+  ctx.fillStyle = S.color;
+  if (S.ghost) {
+    ctx.globalAlpha = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--ga')) || .13;
+    ctx.beginPath();
+    cols.forEach((c, x) => c.forEach((on, y) => { if (!on) dot(x, y); }));
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  const glow = el.closest('.glow');
+  if (glow) { ctx.shadowColor = S.color; ctx.shadowBlur = p * 0.9 * dpr; }
+  ctx.beginPath();
+  cols.forEach((c, x) => c.forEach((on, y) => { if (on) dot(x, y); }));
+  ctx.fill();
+  if (glow) ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+/* ---------- clock render + fit ---------- */
+const stage = $('#stage'), frame = $('#frame');
+const mainA = $('#mainA'), mainB = $('#mainB'), side = $('#side'), apEl = $('#ap'), secEl = $('#secs'), dateEl = $('#date');
+let lastState = '', lastLayout = '', lastMinute = '', fontEpoch = 0;
+
+function model(now) {
+  const t = timeParts(now);
+  const colonOn = !S.blink || now.getMilliseconds() < 500;
+  const fw = frame.clientWidth, fh = frame.clientHeight;
+  const stacked = S.stack && fh > fw * 1.05;
+  const date = S.show === 'timedate' ? dateString(now) : '';
+  const showAp = S.hour12 && S.ampm;
+  return {
+    t, colonOn, stacked, date, showAp,
+    state: [t.h, t.hpad, t.m, S.seconds ? t.s : '', colonOn || stacked, date, t.ap].join('|'),
+    layout: [S.font, stacked, date, showAp, S.seconds, S.size, S.dateSize, S.show, S.hour12, S.leadingZero, fw, fh, fontEpoch].join('|'),
+    minute: t.h + t.m
+  };
+}
+
+function paint(m) {
+  const F = curFont();
+  if (m.stacked) {
+    paintTxt(mainA, hourItems(m.t), 'time', F);
+    paintTxt(mainB, strItems(m.t.m), 'time', F);
+    mainB.hidden = false;
+  } else {
+    paintTxt(mainA, timeItems(m.t, m.colonOn), 'time', F);
+    mainB.hidden = true;
+  }
+  side.hidden = !(m.showAp || S.seconds);
+  side.classList.toggle('only-secs', !m.showAp);
+  side.classList.toggle('only-ap', !S.seconds);
+  apEl.hidden = !m.showAp;
+  if (m.showAp) paintTxt(apEl, strItems(m.t.ap), 'text', F);
+  secEl.hidden = !S.seconds;
+  if (S.seconds) paintTxt(secEl, strItems(m.t.s), 'time', F);
+  dateEl.hidden = !m.date;
+  if (m.date) paintTxt(dateEl, strItems(normalizeFor(F, m.date)), 'text', F);
+}
+
+function fit(m) {
+  stage.style.fontSize = '100px';
+  paint(m);
+  const r = stage.getBoundingClientRect();
+  const aw = frame.clientWidth * 0.94, ah = frame.clientHeight * 0.92;
+  if (!r.width || !r.height || !aw || !ah) return;
+  const k = Math.min(aw / r.width, ah / r.height) * (S.size / 100);
+  stage.style.fontSize = (100 * k).toFixed(2) + 'px';
+  paint(m);
+}
+
+function driftStage() {
+  if (!S.shift) { stage.style.transform = ''; return; }
+  const r = Math.min(frame.clientWidth, frame.clientHeight) * 0.025;
+  stage.style.transform = `translate(${((Math.random() * 2 - 1) * r).toFixed(1)}px, ${((Math.random() * 2 - 1) * r).toFixed(1)}px)`;
+}
+
+function render(force) {
+  const m = model(new Date());
+  if (!force && m.state === lastState && m.layout === lastLayout) return;
+  lastState = m.state;
+  if (force || m.layout !== lastLayout) { lastLayout = m.layout; fit(m); } else paint(m);
+  if (m.minute !== lastMinute) { lastMinute = m.minute; driftStage(); }
+}
+
+function tick() {
+  render(false);
+  const ms = new Date().getMilliseconds();
+  setTimeout(tick, (ms < 500 ? 500 : 1000) - ms + 8);
+}
+
+const opacityFor = b => 0.012 + 0.988 * Math.pow(b / 100, 2);
+function apply() {
+  const root = document.documentElement.style;
+  root.setProperty('--c', S.color);
+  root.setProperty('--ds', S.dateSize / 100);
+  stage.classList.toggle('glow', S.glow);
+  stage.style.opacity = opacityFor(S.brightness);
+  if (!S.shift) stage.style.transform = '';
+  render(true);
+}
+
+/* ---------- settings sheet ---------- */
+const sheet = $('#sheet');
+function set(k, v) {
+  S[k] = v; save();
+  if (k === 'brightness') stage.style.opacity = opacityFor(v);
+  else apply();
+  if (k === 'color' || k === 'ghost') renderTiles();
+  if (k === 'lang') fillDateFormats();
+  syncControls();
+}
+function fillDateFormats() {
+  const sel = $('#dateFormat'), now = new Date();
+  sel.innerHTML = DATE_FORMATS.map(f => {
+    let s = f.f(now); s = s.charAt(0).toUpperCase() + s.slice(1);
+    return `<option value="${f.id}">${esc(s)}</option>`;
+  }).join('');
+  sel.value = S.dateFormat;
+}
+function syncControls() {
+  document.querySelectorAll('[data-set]').forEach(el => {
+    const v = S[el.dataset.set];
+    if (el.classList.contains('segctl')) el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
+    else if (el.type === 'checkbox') el.checked = !!v;
+    else el.value = v;
+  });
+  $('#sizeV').textContent = S.size + '%';
+  $('#dateSizeV').textContent = S.dateSize + '%';
+  $('#apRow').classList.toggle('dim', !S.hour12);
+  $('#dateSec').style.opacity = S.show === 'timedate' ? 1 : .4;
+  $('#dateSizeLbl').style.opacity = $('#dateSizeR').style.opacity = S.show === 'timedate' ? 1 : .4;
+  $('#ghostRow').classList.toggle('dim', !ghostable(curFont()));
+  document.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', (b.dataset.c || '') === S.color || (b.classList.contains('custom') && !COLORS.includes(S.color))));
+  updateAwake();
+}
+function bindControls() {
+  document.querySelectorAll('[data-set]').forEach(el => {
+    const k = el.dataset.set;
+    if (el.classList.contains('segctl')) el.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      const v = b.dataset.v; set(k, v === 'true' ? true : v === 'false' ? false : v);
+    });
+    else if (el.type === 'checkbox') el.addEventListener('change', () => set(k, el.checked));
+    else if (el.type === 'range') el.addEventListener('input', () => set(k, +el.value));
+    else el.addEventListener('change', () => set(k, el.value));
+  });
+}
+function renderColors() {
+  const box = $('#colors');
+  box.innerHTML = COLORS.map(c => `<button class="sw" data-c="${c}" style="background:${c}" aria-label="${c}"></button>`).join('') +
+    `<label class="sw custom" aria-label="Custom color"><input type="color" id="pick"></label>`;
+  box.querySelectorAll('button.sw').forEach(b => b.addEventListener('click', () => set('color', b.dataset.c)));
+  const pick = $('#pick'); pick.value = S.color;
+  pick.addEventListener('input', () => set('color', pick.value));
+}
+const SAMPLE = { h: '12', m: '34', hpad: false };
+function renderTiles() {
+  const box = $('#fonts');
+  box.innerHTML = '';
+  for (const F of allFonts()) {
+    const b = document.createElement('button');
+    b.className = 'tile' + (F.id === S.font ? ' on' : '');
+    const pv = document.createElement('div'); pv.className = 'prev';
+    const tx = document.createElement('div'); tx.className = 'txt'; pv.appendChild(tx);
+    const n = document.createElement('div'); n.className = 'nm'; n.textContent = F.name;
+    b.append(pv, n);
+    if (F.custom) {
+      const x = document.createElement('span'); x.className = 'x'; x.textContent = '×';
+      x.addEventListener('click', e => { e.stopPropagation(); removeFont(F); });
+      b.appendChild(x);
+    }
+    b.addEventListener('click', () => { set('font', F.id); box.querySelectorAll('.tile').forEach(t => t.classList.remove('on')); b.classList.add('on'); });
+    box.appendChild(b);
+    paintTxt(tx, timeItems(SAMPLE, true), 'time', F);
+    const avail = pv.clientWidth - 6, w = tx.getBoundingClientRect().width;
+    if (avail > 0 && w > avail) { tx.style.fontSize = (20 * avail / w).toFixed(1) + 'px'; paintTxt(tx, timeItems(SAMPLE, true), 'time', F); }
+  }
+}
+function openSheet() {
+  renderTiles(); fillDateFormats(); syncControls();
+  sheet.classList.add('open');
+  hideHint(true);
+}
+const closeSheet = () => sheet.classList.remove('open');
+$('#done').addEventListener('click', closeSheet);
+
+/* ---------- custom fonts (stored on the phone) ---------- */
+function b64ToBuf(b64) { const bin = atob(b64), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return a.buffer; }
+function bufToB64(buf) { const a = new Uint8Array(buf); let s = ''; for (let i = 0; i < a.length; i += 0x8000) s += String.fromCharCode.apply(null, a.subarray(i, i + 0x8000)); return btoa(s); }
+async function registerCustomFonts() {
+  for (const f of customFonts) {
+    try { const ff = new FontFace(f.fam, b64ToBuf(f.data)); await ff.load(); document.fonts.add(ff); } catch (e) { /* skip broken font */ }
+  }
+}
+$('#addFont').addEventListener('click', () => $('#fontFile').click());
+$('#fontFile').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  const buf = await file.arrayBuffer();
+  const id = 'u' + Date.now().toString(36), fam = 'UF_' + id;
+  try { const ff = new FontFace(fam, buf); await ff.load(); document.fonts.add(ff); }
+  catch (err) { alert("That file doesn't look like a font. Pick a .ttf, .otf or .woff file."); return; }
+  const name = file.name.replace(/\.(ttf|otf|woff2?|ttc)$/i, '').replace(/[-_]+/g, ' ').trim().slice(0, 24) || 'My font';
+  const list = customFonts.concat([{ id, name, fam, data: bufToB64(buf) }]);
+  if (!store.set(FKEY, list)) { alert('Not enough space on the phone to save that font.'); return; }
+  customFonts = list;
+  set('font', id);
+  renderTiles();
+});
+function removeFont(F) {
+  if (!confirm(`Remove "${F.name}"?`)) return;
+  customFonts = customFonts.filter(f => f.id !== F.id);
+  store.set(FKEY, customFonts);
+  if (S.font === F.id) set('font', DEFAULTS.font);
+  renderTiles();
+}
+
+/* ---------- keep the screen awake ---------- */
+let wakeLock = null, videoOn = false, wakeErr = '';
+const video = $('#nosleep');
+video.muted = true;
+async function requestWake() {
+  if (document.visibilityState !== 'visible') return;
+  if ('wakeLock' in navigator) {
+    if (wakeLock) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeErr = '';
+      wakeLock.addEventListener('release', () => { wakeLock = null; updateAwake(); });
+      if (videoOn) { video.pause(); videoOn = false; }
+    } catch (e) { wakeErr = e.message || String(e); startVideo(); }
+  } else startVideo();
+  updateAwake();
+}
+function startVideo() {
+  if (videoOn) return;
+  const p = video.play();
+  if (p && p.then) p.then(() => { videoOn = true; updateAwake(); }).catch(() => {});
+}
+function updateAwake() {
+  const el = $('#awake'); if (!el) return;
+  el.innerHTML = wakeLock ? '<b style="color:#6c6">●</b> Screen will stay on while this is open.'
+    : videoOn ? '<b style="color:#6c6">●</b> Screen will stay on (backup method).'
+    : '<b style="color:#c66">●</b> Not keeping the screen on yet — tap the clock once.' + (wakeErr ? `<br><span style="color:#555">${esc(wakeErr)}</span>` : '');
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { requestWake(); render(true); }
+});
+
+/* ---------- gestures: tap = settings, vertical swipe = brightness ---------- */
+const screenEl = $('#screen'), hud = $('#hud');
+let drag = null, hudTimer = 0;
+function showHud(text) {
+  hud.textContent = text; hud.classList.add('show');
+  clearTimeout(hudTimer); hudTimer = setTimeout(() => hud.classList.remove('show'), 900);
+}
+screenEl.addEventListener('pointerdown', e => {
+  if (!wakeLock && !videoOn) requestWake();
+  if (sheet.classList.contains('open')) { closeSheet(); drag = null; return; }
+  drag = { y: e.clientY, b: S.brightness, moved: false };
+  try { screenEl.setPointerCapture(e.pointerId); } catch (err) {}
+});
+screenEl.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dy = drag.y - e.clientY;
+  if (!drag.moved && Math.abs(dy) < 10) return;
+  drag.moved = true;
+  const b = Math.round(Math.min(100, Math.max(1, drag.b + dy / screenEl.clientHeight * 130)));
+  if (b !== S.brightness) { S.brightness = b; stage.style.opacity = opacityFor(b); }
+  showHud('Brightness ' + b + '%');
+});
+const endDrag = () => {
+  if (!drag) return;
+  if (drag.moved) save(); else openSheet();
+  drag = null;
+};
+screenEl.addEventListener('pointerup', endDrag);
+screenEl.addEventListener('pointercancel', () => { if (drag && drag.moved) save(); drag = null; });
+
+/* ---------- first-launch hint ---------- */
+const hint = $('#hint');
+function hideHint(forever) {
+  hint.style.opacity = 0;
+  if (forever) store.set(HKEY, true);
+}
+if (store.get(HKEY)) hint.hidden = true; else setTimeout(() => hideHint(false), 6000);
+
+/* ---------- start ---------- */
+window.addEventListener('resize', () => render(true));
+document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { fontEpoch++; render(true); });
+bindControls();
+renderColors();
+apply();
+tick();
+registerCustomFonts().then(() => { fontEpoch++; render(true); });
+requestWake();
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
