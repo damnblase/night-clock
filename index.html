@@ -646,13 +646,21 @@ function drawSheep() {
   ctx.fillStyle = S.color;
   ctx.shadowColor = S.color;
   ctx.shadowBlur = S.glow ? q * 1.2 * dpr : 0;
-  const d = (W + sw) / 4;                                      // distance of one hop: 4 hops from off-left to off-right
+  // Hop length: what 4 hops across the phone held vertically gives, used in both orientations, so
+  // horizontal sheep hop the same realistic distance (and more of them fit on the wider screen).
+  // Set SAME_HOP_BOTH_WAYS to false to go back to "always exactly 4 hops across the screen".
+  const SAME_HOP_BOTH_WAYS = true;
+  const d = ((SAME_HOP_BOTH_WAYS ? Math.min(W, H) : W) + sw) / 4;
+  const cross = (W + sw) / d;                                  // seconds to cross (4 when vertical)
   const sprites = [];
-  if (S.fence) sprites.push([FENCE, snap(-sw + 2.5 * d + sw / 2 - 2.5 * q), ground - 5 * q]);   // under the 3rd hop's peak
+  if (S.fence) {                                               // fence under the hop peak nearest the middle
+    const ePeak = Math.min(Math.max(Math.round((W + sw) / 2 / d - 0.5) + 0.5, 0.5), Math.floor(cross) - 0.5);
+    sprites.push([FENCE, snap(-sw + ePeak * d + sw / 2 - 2.5 * q), ground - 5 * q]);
+  }
   const t = Date.now() / 1000, every = 2;                     // a new sheep every 2 seconds
-  for (let n = Math.floor(t / every); n * every > t - 4; n--) {
-    const e = t - n * every;                                   // seconds since this sheep set off (0–4)
-    if (e < 0 || e >= 4) continue;
+  for (let n = Math.floor(t / every); n * every > t - cross; n--) {
+    const e = t - n * every;                                   // seconds since this sheep set off
+    if (e < 0 || e >= cross) continue;
     const p = e - Math.floor(e);                               // 0 = touching the ground, exactly on the second
     const lift = 4 * jump * p * (1 - p);
     sprites.push([p > 0.1 && p < 0.9 ? SHEEP_AIR : SHEEP_GROUND, snap(-sw + e * d), snap(ground - sh - lift)]);
