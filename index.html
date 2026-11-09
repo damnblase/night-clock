@@ -211,9 +211,9 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
 
   <section>
     <h3>Counting sheep</h3>
-    <div class="segctl" data-set="sheep"><button data-v="off">Off</button><button data-v="one">One at a time</button><button data-v="flock">Flock</button></div>
+    <div class="segctl" data-set="sheep"><button data-v="off">Off</button><button data-v="flock">On</button></div>
     <label class="row" id="fenceRow"><span>Fence to jump over</span><input type="checkbox" data-set="fence"></label>
-    <small>Each sheep crosses the screen in 4 hops, landing exactly on every second.</small>
+    <small>A new sheep sets off every 2 seconds and crosses in 4 hops, landing exactly on every second.</small>
   </section>
 
   <section>
@@ -265,6 +265,7 @@ const DEFAULTS = {
 };
 let S = Object.assign({}, DEFAULTS, store.get(KEY) || {});
 if (typeof S.shift === 'boolean') S.shift = S.shift ? 'glide' : 'off';   // v1 stored an on/off switch
+if (S.sheep === 'one') S.sheep = 'flock';                                 // "one at a time" was removed
 S.v = 2;
 const save = () => store.set(KEY, S);
 
@@ -599,7 +600,7 @@ const FENCE = ['+...+', '+++++', '+...+', '+++++', '+...+'];
 const sheepCv = $('#sheepLayer');
 let sheepGeo = null, sheepRAF = 0;
 function layoutSheep() {
-  const on = S.sheep === 'one' || S.sheep === 'flock';
+  const on = S.sheep === 'flock';
   if (!on) {
     sheepGeo = null; sheepCv.hidden = true;
     document.documentElement.style.setProperty('--band', '0px');
@@ -648,7 +649,7 @@ function drawSheep() {
   const d = (W + sw) / 4;                                      // distance of one hop: 4 hops from off-left to off-right
   const sprites = [];
   if (S.fence) sprites.push([FENCE, snap(-sw + 2.5 * d + sw / 2 - 2.5 * q), ground - 5 * q]);   // under the 3rd hop's peak
-  const t = Date.now() / 1000, every = S.sheep === 'flock' ? 2 : 4;
+  const t = Date.now() / 1000, every = 2;                     // a new sheep every 2 seconds
   for (let n = Math.floor(t / every); n * every > t - 4; n--) {
     const e = t - n * every;                                   // seconds since this sheep set off (0–4)
     if (e < 0 || e >= 4) continue;
