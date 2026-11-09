@@ -1,5 +1,5 @@
 // Caches the whole app on the phone so the clock works offline all night.
-const CACHE = 'night-clock-v7';
+const CACHE = 'night-clock-v9';
 const ASSETS = [
   './',
   'index.html',
