@@ -213,7 +213,7 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
     <h3>Counting sheep</h3>
     <div class="segctl" data-set="sheep"><button data-v="off">Off</button><button data-v="flock">On</button></div>
     <label class="row" id="fenceRow"><span>Fence to jump over</span><input type="checkbox" data-set="fence"></label>
-    <small>A new sheep sets off every 2 seconds and crosses in 4 hops, landing exactly on every second.</small>
+    <small>Every hop lands exactly on a second. Upright: 4 hops across, a sheep every 2 s. Sideways: 10 hops across, a sheep every 5 s — the 5th hop clears the fence and lands mid-screen on :00, :05, :10… so 12 sheep over the fence = 1 minute.</small>
   </section>
 
   <section>
@@ -596,7 +596,7 @@ function tick() {
 const SHEEP_TOP = ['...##.##.##...', '..#########...', '.##########++.', '###########+++', '##########+.++', '###########+++', '.#########.++.'];
 const SHEEP_GROUND = SHEEP_TOP.concat(['..+.+..+.+....', '..+.+..+.+....']);
 const SHEEP_AIR = SHEEP_TOP.concat(['.+.+....+.+...', '+.+......+.+..']);
-const FENCE = ['+...+', '+++++', '+...+', '+++++', '+...+'];
+const FENCE = ['+++++', '+...+', '+++++', '+...+'];
 const sheepCv = $('#sheepLayer');
 let sheepGeo = null, sheepRAF = 0;
 function layoutSheep() {
@@ -612,11 +612,39 @@ function layoutSheep() {
   // iPhone can report wrongly for a moment when the app is reopened — that stretched the sheep).
   const W = sheepCv.clientWidth || innerWidth, H = sheepCv.clientHeight || innerHeight, dpr = window.devicePixelRatio || 1;
   const q = Math.max(2, Math.round(Math.min(W, H) * 0.011));     // size of one sheep "pixel"
-  const sh = 9 * q, jump = Math.round(1.5 * sh), band = sh + jump + 3 * q;
+  const sh = 9 * q;
+  const jumpBig = Math.round(1.8 * sh);                         // the leap over the fence: tall
+  const jumpSmall = Math.round(0.35 * jumpBig);                 // every other leap: small hops
+  const band = sh + jumpBig + 3 * q;
   document.documentElement.style.setProperty('--band', band + 'px');  // the clock moves up to make room
   sheepCv.width = Math.round(W * dpr); sheepCv.height = Math.round(H * dpr);
-  sheepGeo = { q, sw: 14 * q, sh, jump, W, H, dpr, ground: frame.getBoundingClientRect().bottom + band - q };
+  sheepGeo = { q, sw: 14 * q, sh, jumpBig, jumpSmall, W, H, dpr, ground: frame.getBoundingClientRect().bottom + band - q };
   if (!sheepRAF) sheepRAF = requestAnimationFrame(drawSheep);
+}
+/* How the sheep move. Every leap takes exactly one second and lands on the second.
+   Vertical:   4 leaps across, a new sheep every 2 s, the 3rd leap clears the fence.
+   Horizontal: 10 leaps across, a new sheep every 5 s (on :00, :05, :10 …), the 5th leap clears the
+               fence and lands in the exact middle of the screen on the 5-second mark —
+               so 12 sheep over the fence = 1 minute, like the 12 marks on a clock face. */
+function sheepPlan(W, H) {
+  return W > H ? { leaps: 10, every: 5, fenceLeap: 5 } : { leaps: 4, every: 2, fenceLeap: 3 };
+}
+function sheepSprites(t, G) {
+  const { q, sw, sh, jumpBig, jumpSmall, W, H, ground } = G;
+  const P = sheepPlan(W, H);
+  const d = (W + sw) / P.leaps;                                // length of one leap
+  const snap = v => Math.round(v / q) * q;                     // move on a pixel grid, like a real LED panel
+  const sprites = [];
+  if (S.fence) sprites.push([FENCE, snap(-sw + (P.fenceLeap - 0.5) * d + sw / 2 - 2.5 * q), ground - FENCE.length * q]);
+  for (let n = Math.floor(t / P.every); n * P.every > t - P.leaps; n--) {
+    const e = t - n * P.every;                                 // seconds since this sheep set off
+    if (e < 0 || e >= P.leaps) continue;
+    const leap = Math.floor(e) + 1;                            // 1st, 2nd, … leap
+    const p = e - Math.floor(e);                               // 0 = touching the ground, exactly on the second
+    const lift = 4 * (leap === P.fenceLeap ? jumpBig : jumpSmall) * p * (1 - p);
+    sprites.push([p > 0.1 && p < 0.9 ? SHEEP_AIR : SHEEP_GROUND, snap(-sw + e * d), snap(ground - sh - lift)]);
+  }
+  return sprites;
 }
 function drawSheep() {
   sheepRAF = 0;
@@ -630,12 +658,11 @@ function drawSheep() {
     layoutSheep(); render(true);
     return;
   }
-  const { q, sw, sh, jump, W, H, dpr, ground } = G;
+  const { q, W, H, dpr } = G;
   const ctx = sheepCv.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, W, H);
   const F = curFont(), round = F.kind === 'matrix' && F.shape === 'round';
-  const snap = v => Math.round(v / q) * q;                     // move on a pixel grid, like a real LED panel
   const pix = (rows, x0, y0, ch) => rows.forEach((row, y) => {
     for (let x = 0; x < row.length; x++) if (row[x] === ch) {
       const cx = x0 + (x + .5) * q, cy = y0 + (y + .5) * q;
@@ -646,25 +673,7 @@ function drawSheep() {
   ctx.fillStyle = S.color;
   ctx.shadowColor = S.color;
   ctx.shadowBlur = S.glow ? q * 1.2 * dpr : 0;
-  // Hop length: what 4 hops across the phone held vertically gives, used in both orientations, so
-  // horizontal sheep hop the same realistic distance (and more of them fit on the wider screen).
-  // Set SAME_HOP_BOTH_WAYS to false to go back to "always exactly 4 hops across the screen".
-  const SAME_HOP_BOTH_WAYS = true;
-  const d = ((SAME_HOP_BOTH_WAYS ? Math.min(W, H) : W) + sw) / 4;
-  const cross = (W + sw) / d;                                  // seconds to cross (4 when vertical)
-  const sprites = [];
-  if (S.fence) {                                               // fence under the hop peak nearest the middle
-    const ePeak = Math.min(Math.max(Math.round((W + sw) / 2 / d - 0.5) + 0.5, 0.5), Math.floor(cross) - 0.5);
-    sprites.push([FENCE, snap(-sw + ePeak * d + sw / 2 - 2.5 * q), ground - 5 * q]);
-  }
-  const t = Date.now() / 1000, every = 2;                     // a new sheep every 2 seconds
-  for (let n = Math.floor(t / every); n * every > t - cross; n--) {
-    const e = t - n * every;                                   // seconds since this sheep set off
-    if (e < 0 || e >= cross) continue;
-    const p = e - Math.floor(e);                               // 0 = touching the ground, exactly on the second
-    const lift = 4 * jump * p * (1 - p);
-    sprites.push([p > 0.1 && p < 0.9 ? SHEEP_AIR : SHEEP_GROUND, snap(-sw + e * d), snap(ground - sh - lift)]);
-  }
+  const sprites = sheepSprites(Date.now() / 1000, G);
   for (const [ch, alpha] of [['#', 1], ['+', 0.5]]) {
     ctx.globalAlpha = alpha;
     ctx.beginPath();
