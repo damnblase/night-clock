@@ -233,6 +233,7 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
 
   <section>
     <h3>Screen</h3>
+    <label class="row"><span>Hold to open settings <span style="color:#555">(a quick tap does nothing)</span></span><input type="checkbox" data-set="holdOpen"></label>
     <div id="awake"></div>
   </section>
 
@@ -259,6 +260,7 @@ const DEFAULTS = {
   glow: true, ghost: true, shift: 'glide',          // burn-in protection: off | jump | glide | tilt | breathe
   temp: false, tempUnit: 'C', loc: null,
   sheep: 'off', fence: true,
+  holdOpen: true,                                   // settings open on a long press, so a bump in the dark does nothing
   v: 2
 };
 let S = Object.assign({}, DEFAULTS, store.get(KEY) || {});
@@ -892,35 +894,42 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') { requestWake(); layoutSheep(); render(true); updateWeather(false); }
 });
 
-/* ---------- gestures: tap = settings, vertical swipe = brightness ---------- */
+/* ---------- gestures: hold (or tap) = settings, vertical swipe = brightness ---------- */
 const screenEl = $('#screen'), hud = $('#hud');
-let drag = null, hudTimer = 0;
+let drag = null, hudTimer = 0, holdTimer = 0;
 function showHud(text) {
   hud.textContent = text; hud.classList.add('show');
   clearTimeout(hudTimer); hudTimer = setTimeout(() => hud.classList.remove('show'), 900);
 }
 screenEl.addEventListener('pointerdown', e => {
   if (!wakeLock && !videoOn) requestWake();
+  clearTimeout(holdTimer);
   if (sheet.classList.contains('open')) { closeSheet(); drag = null; return; }
   drag = { y: e.clientY, b: S.brightness, moved: false };
   try { screenEl.setPointerCapture(e.pointerId); } catch (err) {}
+  if (S.holdOpen) holdTimer = setTimeout(() => { if (drag && !drag.moved) { drag = null; openSheet(); } }, 550);
 });
+screenEl.addEventListener('contextmenu', e => e.preventDefault());
 screenEl.addEventListener('pointermove', e => {
   if (!drag) return;
   const dy = drag.y - e.clientY;
   if (!drag.moved && Math.abs(dy) < 10) return;
   drag.moved = true;
+  clearTimeout(holdTimer);
   const b = Math.round(Math.min(100, Math.max(1, drag.b + dy / screenEl.clientHeight * 130)));
   if (b !== S.brightness) { S.brightness = b; setBrightness(b); }
   showHud('Brightness ' + b + '%');
 });
 const endDrag = () => {
+  clearTimeout(holdTimer);
   if (!drag) return;
-  if (drag.moved) save(); else openSheet();
+  if (drag.moved) save();
+  else if (S.holdOpen) showHud('Hold to open settings');
+  else openSheet();
   drag = null;
 };
 screenEl.addEventListener('pointerup', endDrag);
-screenEl.addEventListener('pointercancel', () => { if (drag && drag.moved) save(); drag = null; });
+screenEl.addEventListener('pointercancel', () => { clearTimeout(holdTimer); if (drag && drag.moved) save(); drag = null; });
 
 /* ---------- first-launch hint ---------- */
 const hint = $('#hint');
@@ -928,6 +937,7 @@ function hideHint(forever) {
   hint.style.opacity = 0;
   if (forever) store.set(HKEY, true);
 }
+hint.innerHTML = `${S.holdOpen ? 'Hold' : 'Tap'} for settings &nbsp;·&nbsp; swipe up / down for brightness`;
 if (store.get(HKEY)) hint.hidden = true; else setTimeout(() => hideHint(false), 6000);
 
 /* ---------- start ---------- */
@@ -941,8 +951,23 @@ apply();
 tick();
 registerCustomFonts().then(() => { fontEpoch++; render(true); });
 requestWake();
+/* ---------- offline copy + instant updates ---------- */
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+  const hadOldVersion = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  // A new version finished downloading and took over: reload once so it shows right away
+  // (skipped on the very first install, when there is nothing older to replace).
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadOldVersion || reloading) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    // iPhone often resumes the app instead of relaunching it, so also check for updates on return.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
 </script>
 </body>

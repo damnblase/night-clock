@@ -1,5 +1,5 @@
 // Caches the whole app on the phone so the clock works offline all night.
-const CACHE = 'night-clock-v2';
+const CACHE = 'night-clock-v3';
 const ASSETS = [
   './',
   'index.html',
@@ -30,8 +30,9 @@ const ASSETS = [
   'fonts/vt323.woff2',
   'fonts/workbench.woff2',
 ];
+// 'reload' bypasses the browser's HTTP cache, so a new version never stores old files
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
