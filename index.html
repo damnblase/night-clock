@@ -43,7 +43,9 @@ body{position:fixed;inset:0;color:#bbb;font:15px/1.35 -apple-system,BlinkMacSyst
 
 /* ---------- clock ---------- */
 #screen{position:fixed;inset:0;background:#000;touch-action:none;cursor:pointer}
-#frame{position:absolute;top:env(safe-area-inset-top);bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);right:env(safe-area-inset-right);display:flex;align-items:center;justify-content:center}
+#sheepLayer{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+#stage.moving{transition:transform .5s linear;will-change:transform}
+#frame{position:absolute;top:env(safe-area-inset-top);bottom:calc(env(safe-area-inset-bottom) + var(--band,0px));left:env(safe-area-inset-left);right:env(safe-area-inset-right);display:flex;align-items:center;justify-content:center}
 #stage{flex:none;color:var(--c);display:flex;flex-direction:column;align-items:center;font-size:100px}
 #timeRow{display:flex;align-items:stretch;flex:none}
 #main{display:flex;flex-direction:column;align-items:center;flex:none}
@@ -51,14 +53,16 @@ body{position:fixed;inset:0;color:#bbb;font:15px/1.35 -apple-system,BlinkMacSyst
 #side{flex:none;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;font-size:.3em;margin-left:.35em;padding:.12em 0}
 #side.only-secs{justify-content:flex-end}
 #side.only-ap{justify-content:flex-start}
-#date{font-size:calc(var(--ds)*1em);margin-top:.55em}
+/* date / temperature line: reserves its height but never changes the clock's width or position */
+#infoRow{align-self:stretch;position:relative;font-size:calc(var(--ds)*1em);height:1em;margin-top:.55em}
+#info{position:absolute;left:50%;top:0;width:max-content;transform-origin:50% 0;transform:translateX(-50%)}
 
 .txt{display:grid;line-height:1;white-space:pre;font-weight:normal;font-style:normal;font-synthesis:none;font-variant-numeric:tabular-nums}
 .txt>span{grid-area:1/1}
 .txt .g{visibility:hidden}
 .txt.ghost-on .g{visibility:visible;opacity:var(--ga)}
-.txt .l{justify-self:center}
-.txt.seg .l,.txt.ghost-on .l{justify-self:end}
+.txt .l{justify-self:end}
+.txt .d{display:inline-block;width:var(--dw,.6em);text-align:center}  /* every digit gets the same fixed-width box */
 .txt .c.off{visibility:hidden}
 .txt.mx{display:block}
 .txt.mx canvas{display:block}
@@ -66,7 +70,7 @@ body{position:fixed;inset:0;color:#bbb;font:15px/1.35 -apple-system,BlinkMacSyst
 
 #hud{position:fixed;top:calc(env(safe-area-inset-top) + 18px);left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:20px;background:rgba(28,28,28,.85);color:#bbb;font-size:14px;opacity:0;transition:opacity .4s;pointer-events:none;z-index:5;white-space:nowrap}
 #hud.show{opacity:1;transition:none}
-#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 22px);text-align:center;color:#555;font-size:13px;transition:opacity 1.2s;pointer-events:none;z-index:4}
+#hint{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + var(--band,0px) + 22px);text-align:center;color:#555;font-size:13px;transition:opacity 1.2s;pointer-events:none;z-index:4}
 
 /* ---------- settings sheet ---------- */
 #sheet{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);width:min(100%,640px);max-height:88%;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;background:#0b0b0b;border:1px solid #1d1d1d;border-bottom:0;border-radius:18px 18px 0 0;padding:6px max(18px,env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-left));transition:transform .28s ease;z-index:10;cursor:default}
@@ -108,6 +112,12 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
 #awake{font-size:14px;color:#999}
 #awake b{font-weight:600}
 .credits{font-size:11px;color:#444;margin:14px 0 0;line-height:1.5}
+.search{display:flex;gap:8px;margin-top:10px}
+.search input{flex:1;min-width:0;background:#151515;color:#ddd;border:1px solid #262626;border-radius:9px;padding:9px 10px;font-size:16px;-webkit-user-select:text;user-select:text}
+.search button{flex:none;background:#1c1c1c;color:#ddd;border:1px solid #2a2a2a;border-radius:9px;padding:0 14px;font:inherit;font-size:15px}
+.city{display:block;width:100%;text-align:left;background:#121212;color:#ddd;border:1px solid #222;border-radius:9px;padding:9px 12px;margin-top:6px;font:inherit;font-size:15px;cursor:pointer}
+.city span{color:#666;font-size:13px;margin-left:8px}
+#locName{color:#ddd}
 </style>
 </head>
 <body>
@@ -118,9 +128,10 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
         <div id="main"><div id="mainA" class="txt"></div><div id="mainB" class="txt" hidden></div></div>
         <div id="side" hidden><div id="ap" class="txt"></div><div id="secs" class="txt"></div></div>
       </div>
-      <div id="date" class="txt" hidden></div>
+      <div id="infoRow" hidden><div id="info" class="txt"></div></div>
     </div>
   </div>
+  <canvas id="sheepLayer" hidden></canvas>
 </div>
 <div id="hud"></div>
 <div id="hint">Tap for settings &nbsp;·&nbsp; swipe up / down for brightness</div>
@@ -157,7 +168,7 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
     <h3>Size</h3>
     <div class="lbl"><span>Clock</span><span id="sizeV"></span></div>
     <input type="range" data-set="size" min="25" max="100">
-    <div class="lbl" id="dateSizeLbl"><span>Date (relative to time)</span><span id="dateSizeV"></span></div>
+    <div class="lbl" id="dateSizeLbl"><span>Date &amp; temperature line</span><span id="dateSizeV"></span></div>
     <input type="range" data-set="dateSize" min="12" max="60" id="dateSizeR">
   </section>
 
@@ -187,11 +198,37 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
     <label class="row"><span>UPPERCASE</span><input type="checkbox" data-set="upper"></label>
   </section>
 
+  <section id="tempSec">
+    <h3>Outside temperature</h3>
+    <label class="row"><span>Show temperature</span><input type="checkbox" data-set="temp"></label>
+    <div class="segctl" data-set="tempUnit"><button data-v="C">°C</button><button data-v="F">°F</button></div>
+    <div class="lbl"><span>Location</span><span id="locName">Not set</span></div>
+    <button class="btn" id="useLoc">Use my current location</button>
+    <form class="search" id="cityForm"><input id="citySearch" type="search" placeholder="…or type a city" autocomplete="off" enterkeyhint="search"><button type="submit">Search</button></form>
+    <div id="cityResults"></div>
+    <small id="tempStatus"></small>
+  </section>
+
+  <section>
+    <h3>Counting sheep</h3>
+    <div class="segctl" data-set="sheep"><button data-v="off">Off</button><button data-v="one">One at a time</button><button data-v="flock">Flock</button></div>
+    <label class="row" id="fenceRow"><span>Fence to jump over</span><input type="checkbox" data-set="fence"></label>
+    <small>Each sheep crosses the screen in 4 hops, landing exactly on every second.</small>
+  </section>
+
   <section>
     <h3>Look</h3>
     <label class="row"><span>Glow</span><input type="checkbox" data-set="glow"></label>
     <label class="row" id="ghostRow"><span>Show unlit segments / dots</span><input type="checkbox" data-set="ghost"></label>
-    <label class="row"><span>Burn-in protection <span style="color:#555">(drifts a few pixels each minute)</span></span><input type="checkbox" data-set="shift"></label>
+    <div class="lbl" style="margin-top:10px"><span>Burn-in protection</span></div>
+    <select data-set="shift">
+      <option value="off">Off — the clock never moves</option>
+      <option value="jump">Jump a few pixels every minute</option>
+      <option value="glide">Glide slowly around</option>
+      <option value="tilt">3D tilt — slow perspective sway</option>
+      <option value="breathe">Breathe — slow zoom in and out</option>
+    </select>
+    <small>Keeps the same screen pixels from staying lit all night, which can mark an OLED screen over time.</small>
   </section>
 
   <section>
@@ -200,7 +237,7 @@ select{width:100%;background:#151515;color:#ddd;border:1px solid #262626;border-
   </section>
 
   <button class="btn" id="done">Done</button>
-  <p class="credits">Fonts: DSEG by Keshikan (SIL OFL) · LCDDot TR by Ömer Köse (CC BY-SA) · Doto, Bitcount, DotGothic16, Micro 5, Silkscreen, Tiny5, Pixelify Sans, VT323, Workbench, Sixtyfour, Share Tech Mono, Handjet, Nixie One, Orbitron from Google Fonts (SIL OFL).</p>
+  <p class="credits">Fonts: DSEG by Keshikan (SIL OFL) · LCDDot TR by Ömer Köse (CC BY-SA) · Doto, Bitcount, DotGothic16, Micro 5, Silkscreen, Tiny5, Pixelify Sans, VT323, Workbench, Sixtyfour, Share Tech Mono, Handjet, Nixie One, Orbitron from Google Fonts (SIL OFL). Weather data by Open-Meteo.com (CC BY 4.0).</p>
 </div>
 
 <script>
@@ -219,9 +256,14 @@ const DEFAULTS = {
   hour12: false, leadingZero: true, ampm: true, seconds: false, blink: false, stack: true,
   dateFormat: 'wdm', lang: 'auto', upper: true,
   size: 92, dateSize: 28, brightness: 55,
-  glow: true, ghost: true, shift: true
+  glow: true, ghost: true, shift: 'glide',          // burn-in protection: off | jump | glide | tilt | breathe
+  temp: false, tempUnit: 'C', loc: null,
+  sheep: 'off', fence: true,
+  v: 2
 };
 let S = Object.assign({}, DEFAULTS, store.get(KEY) || {});
+if (typeof S.shift === 'boolean') S.shift = S.shift ? 'glide' : 'off';   // v1 stored an on/off switch
+S.v = 2;
 const save = () => store.set(KEY, S);
 
 /* kind: seg = DSEG segment font, matrix = drawn dot matrix, text = regular font, custom = imported */
@@ -265,6 +307,7 @@ const GLYPH_SRC = {
   '8': '.###.|#...#|#...#|.###.|#...#|#...#|.###.', '9': '.###.|#...#|#...#|.####|....#|...#.|.##..',
   ':': '.|.|#|.|#|.|.', '.': '.|.|.|.|.|.|#', ',': '..|..|..|..|..|.#|#.', ' ': '...|...|...|...|...|...|...',
   '-': '....|....|....|####|....|....|....', '/': '.....|....#|...#.|..#..|.#...|#....|.....',
+  '°': '.#.|#.#|.#.|...|...|...|...',
   'A': '.###.|#...#|#...#|#####|#...#|#...#|#...#', 'B': '####.|#...#|#...#|####.|#...#|#...#|####.',
   'C': '.###.|#...#|#....|#....|#....|#...#|.###.', 'D': '###..|#..#.|#...#|#...#|#...#|#..#.|###..',
   'E': '#####|#....|#....|####.|#....|#....|#####', 'F': '#####|#....|#....|####.|#....|#....|#....',
@@ -355,16 +398,38 @@ function paintTxt(el, items, role, F) {
       else { g += full; l += esc(ch); }
     }
   } else {
+    // Regular fonts often have digits of different widths ("1" narrower than "8"), which made the
+    // clock re-center whenever a number changed. Each digit now sits in an identical fixed-width box.
+    el.style.setProperty('--dw', digitWidth(fam).toFixed(4) + 'em');
     for (const it of items) {
       const ch = it.ch;
-      if (ch === PAD) { g += ghostOn ? '8' : '0'; continue; }
-      g += /\d/.test(ch) ? (ghostOn ? '8' : '0') : ch;
-      l += it.colon ? colonSpan(ch, it.off) : esc(ch);
+      if (ch === PAD || it.cell || /\d/.test(ch)) {
+        g += `<span class="d">${ghostOn ? '8' : ''}</span>`;
+        l += `<span class="d">${ch === PAD ? '' : esc(ch)}</span>`;
+      } else {
+        g += esc(ch);
+        l += it.colon ? colonSpan(ch, it.off) : esc(ch);
+      }
     }
   }
   el.className = 'txt' + (F.kind === 'seg' ? ' seg' : '') + (ghostOn ? ' ghost-on' : '');
   el.style.fontFamily = `'${fam}', ui-monospace, monospace`;
-  el.innerHTML = `<span class="g">${esc(g)}</span><span class="l">${l}</span>`;
+  el.innerHTML = `<span class="g">${g}</span><span class="l">${l}</span>`;
+}
+
+/* widest digit of a font, in em — used as the fixed box width for every digit */
+const dwCache = {}, dwLoading = new Set();
+const measureCtx = document.createElement('canvas').getContext('2d');
+function digitWidth(fam) {
+  if (dwCache[fam]) return dwCache[fam];
+  const spec = `100px '${fam}'`;
+  measureCtx.font = spec;
+  let w = 0;
+  for (const d of '0123456789') w = Math.max(w, measureCtx.measureText(d).width);
+  const em = (w || 60) / 100;
+  if (document.fonts.check(spec)) dwCache[fam] = em;
+  else if (!dwLoading.has(fam)) { dwLoading.add(fam); document.fonts.load(spec).then(() => { fontEpoch++; render(true); }).catch(() => {}); }
+  return em;
 }
 
 function paintMatrix(el, items, F) {
@@ -413,8 +478,9 @@ function paintMatrix(el, items, F) {
 
 /* ---------- clock render + fit ---------- */
 const stage = $('#stage'), frame = $('#frame');
-const mainA = $('#mainA'), mainB = $('#mainB'), side = $('#side'), apEl = $('#ap'), secEl = $('#secs'), dateEl = $('#date');
-let lastState = '', lastLayout = '', lastMinute = '', fontEpoch = 0;
+const mainA = $('#mainA'), mainB = $('#mainB'), side = $('#side'), apEl = $('#ap'), secEl = $('#secs');
+const infoRow = $('#infoRow'), infoEl = $('#info');
+let lastState = '', lastLayout = '', fontEpoch = 0, lastJump = '';
 
 function model(now) {
   const t = timeParts(now);
@@ -422,13 +488,29 @@ function model(now) {
   const fw = frame.clientWidth, fh = frame.clientHeight;
   const stacked = S.stack && fh > fw * 1.05;
   const date = S.show === 'timedate' ? dateString(now) : '';
+  const temp = S.temp ? tempText() : '';
   const showAp = S.hour12 && S.ampm;
+  const hasInfo = !!(date || temp);
   return {
-    t, colonOn, stacked, date, showAp,
-    state: [t.h, t.hpad, t.m, S.seconds ? t.s : '', colonOn || stacked, date, t.ap].join('|'),
-    layout: [S.font, stacked, date, showAp, S.seconds, S.size, S.dateSize, S.show, S.hour12, S.leadingZero, fw, fh, fontEpoch].join('|'),
-    minute: t.h + t.m
+    t, colonOn, stacked, date, temp, showAp, hasInfo,
+    state: [t.h, t.hpad, t.m, S.seconds ? t.s : '', colonOn || stacked, date, temp, t.ap].join('|'),
+    // what decides the clock's size; the date/temperature text itself is deliberately NOT here,
+    // so a new day or a new temperature never resizes or moves the clock
+    layout: [S.font, stacked, hasInfo, showAp, S.seconds, S.size, S.dateSize, S.hour12, S.leadingZero, fw, fh, fontEpoch].join('|')
   };
+}
+
+/* date + temperature on one line; the temperature has a fixed 2-digit slot */
+function infoItems(F, m) {
+  const items = m.date ? strItems(normalizeFor(F, m.date)) : [];
+  if (m.temp) {
+    if (items.length) for (const c of (F.kind === 'seg' || F.kind === 'matrix' ? ' ' : '   ')) items.push({ ch: c });
+    const num = m.temp.slice(0, -1);
+    for (let i = num.length; i < 2; i++) items.push({ ch: PAD });
+    for (const c of num) items.push({ ch: c, cell: true });
+    items.push({ ch: '°' });
+  }
+  return items;
 }
 
 function paint(m) {
@@ -448,25 +530,24 @@ function paint(m) {
   if (m.showAp) paintTxt(apEl, strItems(m.t.ap), 'text', F);
   secEl.hidden = !S.seconds;
   if (S.seconds) paintTxt(secEl, strItems(m.t.s), 'time', F);
-  dateEl.hidden = !m.date;
-  if (m.date) paintTxt(dateEl, strItems(normalizeFor(F, m.date)), 'text', F);
+  infoRow.hidden = !m.hasInfo;
+  if (m.hasInfo) {
+    paintTxt(infoEl, infoItems(F, m), 'text', F);
+    // a long date shrinks itself to fit the screen instead of pushing the clock around
+    const avail = frame.clientWidth * 0.96, w = infoEl.offsetWidth;
+    infoEl.style.transform = `translateX(-50%) scale(${(w > avail ? avail / w : 1).toFixed(4)})`;
+  }
 }
 
 function fit(m) {
   stage.style.fontSize = '100px';
   paint(m);
-  const r = stage.getBoundingClientRect();
+  const w = stage.offsetWidth, h = stage.offsetHeight;       // layout size, unaffected by the motion effects
   const aw = frame.clientWidth * 0.94, ah = frame.clientHeight * 0.92;
-  if (!r.width || !r.height || !aw || !ah) return;
-  const k = Math.min(aw / r.width, ah / r.height) * (S.size / 100);
+  if (!w || !h || !aw || !ah) return;
+  const k = Math.min(aw / w, ah / h) * (S.size / 100);
   stage.style.fontSize = (100 * k).toFixed(2) + 'px';
   paint(m);
-}
-
-function driftStage() {
-  if (!S.shift) { stage.style.transform = ''; return; }
-  const r = Math.min(frame.clientWidth, frame.clientHeight) * 0.025;
-  stage.style.transform = `translate(${((Math.random() * 2 - 1) * r).toFixed(1)}px, ${((Math.random() * 2 - 1) * r).toFixed(1)}px)`;
 }
 
 function render(force) {
@@ -474,36 +555,202 @@ function render(force) {
   if (!force && m.state === lastState && m.layout === lastLayout) return;
   lastState = m.state;
   if (force || m.layout !== lastLayout) { lastLayout = m.layout; fit(m); } else paint(m);
-  if (m.minute !== lastMinute) { lastMinute = m.minute; driftStage(); }
+}
+
+/* ---------- burn-in protection: moves the whole clock in one of several ways ---------- */
+function updateMotion(now) {
+  const mode = S.shift, TAU = Math.PI * 2, t = now.getTime() / 1000;
+  const r = Math.min(frame.clientWidth, frame.clientHeight) * 0.025;
+  stage.classList.toggle('moving', mode === 'glide' || mode === 'tilt' || mode === 'breathe');
+  if (mode === 'jump') {                                      // a small random jump once a minute
+    const key = now.getHours() + ':' + now.getMinutes();
+    if (key !== lastJump) {
+      lastJump = key;
+      stage.style.transform = `translate(${((Math.random() * 2 - 1) * r).toFixed(1)}px, ${((Math.random() * 2 - 1) * r).toFixed(1)}px)`;
+    }
+    return;
+  }
+  lastJump = '';
+  let tf = '';
+  if (mode === 'glide')        // wanders smoothly in a slow figure, a fraction of a pixel per second
+    tf = `translate(${(r * Math.sin(TAU * t / 307)).toFixed(2)}px, ${(r * Math.sin(TAU * t / 233 + 1)).toFixed(2)}px)`;
+  else if (mode === 'tilt')    // left/right and top/bottom take turns leaning towards you
+    tf = `perspective(8em) rotateY(${(9 * Math.sin(TAU * t / 97)).toFixed(3)}deg) rotateX(${(10 * Math.sin(TAU * t / 131 + 2)).toFixed(3)}deg)`;
+  else if (mode === 'breathe') // slowly grows and shrinks by a few percent
+    tf = `scale(${(0.965 + 0.035 * (0.5 + 0.5 * Math.sin(TAU * t / 157))).toFixed(4)})`;
+  stage.style.transform = tf;
 }
 
 function tick() {
   render(false);
+  updateMotion(new Date());
   const ms = new Date().getMilliseconds();
   setTimeout(tick, (ms < 500 ? 500 : 1000) - ms + 8);
 }
 
+/* ---------- counting sheep: pixel sheep hop across the bottom, one hop per second ---------- */
+// '#' = wool (full brightness), '+' = face, legs and fence (half brightness)
+const SHEEP_TOP = ['...##.##.##...', '..#########...', '.##########++.', '###########+++', '##########+.++', '###########+++', '.#########.++.'];
+const SHEEP_GROUND = SHEEP_TOP.concat(['..+.+..+.+....', '..+.+..+.+....']);
+const SHEEP_AIR = SHEEP_TOP.concat(['.+.+....+.+...', '+.+......+.+..']);
+const FENCE = ['+...+', '+++++', '+...+', '+++++', '+...+'];
+const sheepCv = $('#sheepLayer');
+let sheepGeo = null, sheepRAF = 0;
+function layoutSheep() {
+  const on = S.sheep === 'one' || S.sheep === 'flock';
+  if (!on) {
+    sheepGeo = null; sheepCv.hidden = true;
+    document.documentElement.style.setProperty('--band', '0px');
+    if (sheepRAF) { cancelAnimationFrame(sheepRAF); sheepRAF = 0; }
+    return;
+  }
+  const W = innerWidth, H = innerHeight, dpr = window.devicePixelRatio || 1;
+  const q = Math.max(2, Math.round(Math.min(W, H) * 0.011));     // size of one sheep "pixel"
+  const sh = 9 * q, jump = Math.round(1.5 * sh), band = sh + jump + 3 * q;
+  document.documentElement.style.setProperty('--band', band + 'px');  // the clock moves up to make room
+  sheepCv.hidden = false;
+  sheepCv.width = Math.round(W * dpr); sheepCv.height = Math.round(H * dpr);
+  sheepGeo = { q, sw: 14 * q, sh, jump, W, H, dpr, ground: frame.getBoundingClientRect().bottom + band - q };
+  if (!sheepRAF) sheepRAF = requestAnimationFrame(drawSheep);
+}
+function drawSheep() {
+  sheepRAF = 0;
+  const G = sheepGeo;
+  if (!G) return;
+  sheepRAF = requestAnimationFrame(drawSheep);
+  const { q, sw, sh, jump, W, H, dpr, ground } = G;
+  const ctx = sheepCv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  const F = curFont(), round = F.kind === 'matrix' && F.shape === 'round';
+  const snap = v => Math.round(v / q) * q;                     // move on a pixel grid, like a real LED panel
+  const pix = (rows, x0, y0, ch) => rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x++) if (row[x] === ch) {
+      const cx = x0 + (x + .5) * q, cy = y0 + (y + .5) * q;
+      if (round) { ctx.moveTo(cx + q * .42, cy); ctx.arc(cx, cy, q * .42, 0, Math.PI * 2); }
+      else ctx.rect(cx - q * .43, cy - q * .43, q * .86, q * .86);
+    }
+  });
+  ctx.fillStyle = S.color;
+  ctx.shadowColor = S.color;
+  ctx.shadowBlur = S.glow ? q * 1.2 * dpr : 0;
+  const d = (W + sw) / 4;                                      // distance of one hop: 4 hops from off-left to off-right
+  const sprites = [];
+  if (S.fence) sprites.push([FENCE, snap(-sw + 2.5 * d + sw / 2 - 2.5 * q), ground - 5 * q]);   // under the 3rd hop's peak
+  const t = Date.now() / 1000, every = S.sheep === 'flock' ? 2 : 4;
+  for (let n = Math.floor(t / every); n * every > t - 4; n--) {
+    const e = t - n * every;                                   // seconds since this sheep set off (0–4)
+    if (e < 0 || e >= 4) continue;
+    const p = e - Math.floor(e);                               // 0 = touching the ground, exactly on the second
+    const lift = 4 * jump * p * (1 - p);
+    sprites.push([p > 0.1 && p < 0.9 ? SHEEP_AIR : SHEEP_GROUND, snap(-sw + e * d), snap(ground - sh - lift)]);
+  }
+  for (const [ch, alpha] of [['#', 1], ['+', 0.5]]) {
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    for (const [rows, x, y] of sprites) pix(rows, x, y, ch);
+    ctx.fill();
+    if (S.glow) ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
 const opacityFor = b => 0.012 + 0.988 * Math.pow(b / 100, 2);
+function setBrightness(b) { const o = opacityFor(b); stage.style.opacity = o; sheepCv.style.opacity = o; }
 function apply() {
   const root = document.documentElement.style;
   root.setProperty('--c', S.color);
   root.setProperty('--ds', S.dateSize / 100);
   stage.classList.toggle('glow', S.glow);
-  stage.style.opacity = opacityFor(S.brightness);
-  if (!S.shift) stage.style.transform = '';
+  setBrightness(S.brightness);
+  layoutSheep();
   render(true);
+  updateMotion(new Date());
 }
 
 /* ---------- settings sheet ---------- */
 const sheet = $('#sheet');
 function set(k, v) {
   S[k] = v; save();
-  if (k === 'brightness') stage.style.opacity = opacityFor(v);
+  if (k === 'brightness') setBrightness(v);
   else apply();
   if (k === 'color' || k === 'ghost') renderTiles();
   if (k === 'lang') fillDateFormats();
+  if (k === 'temp' || k === 'tempUnit') updateWeather(true);
   syncControls();
 }
+
+/* ---------- outside temperature (Open-Meteo: free, no account) ---------- */
+const WKEY = 'nightclock.weather.v1';
+let weather = store.get(WKEY), weatherMsg = '', weatherBusy = false;
+const locKey = () => S.loc ? `${S.loc.lat},${S.loc.lon},${S.tempUnit}` : '';
+function tempText() {
+  const fresh = weather && weather.key === locKey() && Date.now() - weather.at < 3 * 3600e3;
+  return (fresh ? String(Math.round(weather.t)) : '--') + '°';
+}
+async function updateWeather(force) {
+  if (!S.temp || !S.loc || weatherBusy) { syncTempUI(); return; }
+  if (!force && weather && weather.key === locKey() && Date.now() - weather.at < 15 * 60e3) return;
+  weatherBusy = true;
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${S.loc.lat}&longitude=${S.loc.lon}&current=temperature_2m&temperature_unit=${S.tempUnit === 'F' ? 'fahrenheit' : 'celsius'}`;
+    const r = await fetch(u, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    const t = j && j.current && j.current.temperature_2m;
+    if (typeof t !== 'number') throw new Error('no data');
+    weather = { t, key: locKey(), at: Date.now() };
+    store.set(WKEY, weather);
+    weatherMsg = '';
+  } catch (e) { weatherMsg = "Couldn't update the temperature (offline?) — will keep trying."; }
+  weatherBusy = false;
+  render(false);
+  syncTempUI();
+}
+function syncTempUI() {
+  $('#locName').textContent = S.loc ? S.loc.name : 'Not set';
+  const st = $('#tempStatus');
+  if (!S.temp) st.textContent = '';
+  else if (!S.loc) st.textContent = 'Choose a location to show the temperature.';
+  else if (weatherMsg) st.textContent = weatherMsg;
+  else if (weather && weather.key === locKey())
+    st.textContent = `Now ${Math.round(weather.t)}°${S.tempUnit} · updated ${new Date(weather.at).toLocaleTimeString(loc(), { hour: '2-digit', minute: '2-digit' })} · refreshes every 15 min`;
+  else st.textContent = 'Loading…';
+}
+function setLocation(lat, lon, name) {
+  S.loc = { lat: +lat.toFixed(2), lon: +lon.toFixed(2), name };   // ~1 km precision is plenty for weather
+  S.temp = true; save();
+  weather = null; weatherMsg = '';
+  apply(); syncControls(); updateWeather(true);
+}
+$('#useLoc').addEventListener('click', () => {
+  const st = $('#tempStatus');
+  if (!navigator.geolocation) { st.textContent = 'Location is not available — type a city instead.'; return; }
+  st.textContent = 'Finding your location…';
+  navigator.geolocation.getCurrentPosition(
+    p => setLocation(p.coords.latitude, p.coords.longitude, 'My location'),
+    () => { st.textContent = 'Location not allowed — type a city instead.'; },
+    { timeout: 15000, maximumAge: 3600e3 });
+});
+$('#cityForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const input = $('#citySearch'), box = $('#cityResults'), q = input.value.trim();
+  if (!q) return;
+  input.blur();
+  box.innerHTML = '<small>Searching…</small>';
+  try {
+    const lang = (loc() || navigator.language || 'en').slice(0, 2);
+    const r = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=6&language=${lang}&format=json`);
+    const list = (await r.json()).results || [];
+    if (!list.length) { box.innerHTML = '<small>No place found with that name.</small>'; return; }
+    box.innerHTML = list.map((c, i) => `<button class="city" type="button" data-i="${i}">${esc(String(c.name))}<span>${esc([c.admin1, c.country].filter(Boolean).join(', '))}</span></button>`).join('');
+    box.querySelectorAll('.city').forEach(b => b.addEventListener('click', () => {
+      const c = list[+b.dataset.i];
+      box.innerHTML = ''; input.value = '';
+      setLocation(c.latitude, c.longitude, c.name);
+    }));
+  } catch (err) { box.innerHTML = '<small>Search failed — are you online?</small>'; }
+});
 function fillDateFormats() {
   const sel = $('#dateFormat'), now = new Date();
   sel.innerHTML = DATE_FORMATS.map(f => {
@@ -523,8 +770,11 @@ function syncControls() {
   $('#dateSizeV').textContent = S.dateSize + '%';
   $('#apRow').classList.toggle('dim', !S.hour12);
   $('#dateSec').style.opacity = S.show === 'timedate' ? 1 : .4;
-  $('#dateSizeLbl').style.opacity = $('#dateSizeR').style.opacity = S.show === 'timedate' ? 1 : .4;
+  $('#dateSizeLbl').style.opacity = $('#dateSizeR').style.opacity = (S.show === 'timedate' || S.temp) ? 1 : .4;
   $('#ghostRow').classList.toggle('dim', !ghostable(curFont()));
+  $('#fenceRow').classList.toggle('dim', S.sheep === 'off');
+  document.querySelectorAll('#tempSec .segctl, #tempSec .lbl').forEach(e => e.style.opacity = S.temp ? 1 : .4);
+  syncTempUI();
   document.querySelectorAll('.sw').forEach(b => b.classList.toggle('on', (b.dataset.c || '') === S.color || (b.classList.contains('custom') && !COLORS.includes(S.color))));
   updateAwake();
 }
@@ -639,7 +889,7 @@ function updateAwake() {
     : '<b style="color:#c66">●</b> Not keeping the screen on yet — tap the clock once.' + (wakeErr ? `<br><span style="color:#555">${esc(wakeErr)}</span>` : '');
 }
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') { requestWake(); render(true); }
+  if (document.visibilityState === 'visible') { requestWake(); layoutSheep(); render(true); updateWeather(false); }
 });
 
 /* ---------- gestures: tap = settings, vertical swipe = brightness ---------- */
@@ -661,7 +911,7 @@ screenEl.addEventListener('pointermove', e => {
   if (!drag.moved && Math.abs(dy) < 10) return;
   drag.moved = true;
   const b = Math.round(Math.min(100, Math.max(1, drag.b + dy / screenEl.clientHeight * 130)));
-  if (b !== S.brightness) { S.brightness = b; stage.style.opacity = opacityFor(b); }
+  if (b !== S.brightness) { S.brightness = b; setBrightness(b); }
   showHud('Brightness ' + b + '%');
 });
 const endDrag = () => {
@@ -681,7 +931,9 @@ function hideHint(forever) {
 if (store.get(HKEY)) hint.hidden = true; else setTimeout(() => hideHint(false), 6000);
 
 /* ---------- start ---------- */
-window.addEventListener('resize', () => render(true));
+window.addEventListener('resize', () => { layoutSheep(); render(true); });
+setInterval(() => updateWeather(false), 60e3);
+updateWeather(false);
 document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', () => { fontEpoch++; render(true); });
 bindControls();
 renderColors();

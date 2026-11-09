@@ -1,5 +1,5 @@
 // Caches the whole app on the phone so the clock works offline all night.
-const CACHE = 'night-clock-v1';
+const CACHE = 'night-clock-v2';
 const ASSETS = [
   './',
   'index.html',
@@ -40,11 +40,12 @@ self.addEventListener('activate', e => {
 });
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
+  if (new URL(e.request.url).origin !== location.origin) return;   // weather lookups go straight to the network
   // Serve from the phone's cache instantly; refresh the cached copy in the background when online.
   e.respondWith(caches.open(CACHE).then(async cache => {
     const cached = await cache.match(e.request, { ignoreSearch: true });
     const fresh = fetch(e.request).then(res => {
-      if (res && res.ok && new URL(e.request.url).origin === location.origin) cache.put(e.request, res.clone());
+      if (res && res.ok) cache.put(e.request, res.clone());
       return res;
     }).catch(() => cached);
     return cached || fresh;
